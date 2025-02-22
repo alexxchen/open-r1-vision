@@ -15,7 +15,6 @@ use_vllm: true
 vllm_device: auto
 vllm_gpu_memory_utilization: 0.7
 vllm_dtype: bfloat16
-vllm_max_model_len: 1536
 do_eval: true
 eval_strategy: steps
 eval_steps: 100
