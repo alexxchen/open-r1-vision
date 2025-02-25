@@ -9,7 +9,7 @@
 ulimit -u unlimited
 
 # export HF_ENDPOINT=https://hf-mirror.com
-export WANDB_RUN_NAME=Qwen-2.5-1.5B-Simple-RL-$(date +%Y-%m-%d-%H-%M-%S)
+export WANDB_RUN_NAME=Qwen-2.5-3B-Simple-RL-$(date +%Y-%m-%d-%H-%M-%S)
 
 # Bind necessary directories into the container
 # BINDS="--bind /opt/app/nvidia/535.154.05/:/usr/local/nvidia"
