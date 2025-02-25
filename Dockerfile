@@ -1,5 +1,5 @@
 #################### BASE BUILD IMAGE ####################
-FROM vllm/vllm-openai:v0.7.2 AS vllm-trl
+FROM vllm/vllm-openai:v0.7.3 AS vllm-trl
 
 WORKDIR /vllm-workspace
 
