@@ -9,6 +9,8 @@
 ulimit -u unlimited
 
 # export HF_ENDPOINT=https://hf-mirror.com
+export DEBUG_MODE="true" # Enable Debug if you want to see the rollout of model during RL
+export LOG_PATH="./debug_log.txt"
 export WANDB_RUN_NAME=Qwen-2.5-3B-Simple-RL-$(date +%Y-%m-%d-%H-%M-%S)
 
 # Bind necessary directories into the container
@@ -19,6 +21,8 @@ export WANDB_RUN_NAME=Qwen-2.5-3B-Simple-RL-$(date +%Y-%m-%d-%H-%M-%S)
 # --env HF_ENDPOINT=${HF_ENDPOINT} \
 singularity exec --cleanenv --nv  \
     --env WANDB_RUN_NAME=${WANDB_RUN_NAME} \
+    --env DEBUG_MODE=${DEBUG_MODE} \
+    --env LOG_PATH=${LOG_PATH} \
     ./open-r1-vision.sif \
     bash -c ' \
         torchrun --standalone --nnodes=1 --nproc_per_node=7 \
