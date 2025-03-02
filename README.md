@@ -5,12 +5,17 @@ Extended version of open-R1 featuring **multimodal GRPO training** with seamless
 
 ## Key Features ✨
 
-- 🚀 **One-Click Training** via Docker containerization
-- 🌐 **Multimodal Dataset Support** for large model training
-- 🤖 **GRPO Optimization** to reproduce the aha moment in DeepSeek-R1-Zero
-- ⚡ **Slurm Cluster Integration** for distributed training
-- 📦 **Pre-built Docker Image** with dependency-free operation
-- 🔧 **Zero Compatibility Issues** - Fully tested environment
+- 🤖 **A More Perfect Reproduction** - The demo in Open-R1 did not replicate the phenomenon of increased response length. However, the modified version I created successfully demonstrates this phenomenon with longer responses.
+- 🔧 **Zero Compatibility Issues** - The GRPO algorithm is undergoing rapid iterations. I have reviewed the code of the trl, vllm, and transformers packages to ensure that there are no compatibility issues with the current version.
+- 🌐 **Multi Dataset Support** - Support both textual datasets and multimodal datasets.
+- ⚡ **Pre-built Docker Image** - To minimize the cost of environment configuration and improve reproduction efficiency, we not only provide a Dockerfile but also offer pre-built images to ensure developers can quickly restore the experimental environment.
+- 🚀 **One-Click Training on Slurm** - Docker cannot be used on Slurm, so we provide Singularity commands to support large-scale training on Slurm.
+
+## Results
+- Training logs on GSM8K
+  ![The average response length increases](images/gsm8k.png)
+
+- Training logs on GEOQA (still fine tuning)
 
 ## Quick Start ▶️
 
