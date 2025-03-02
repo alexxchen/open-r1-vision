@@ -29,6 +29,7 @@ from configs import GRPOConfig
 from rewards import (
     accuracy_reward_GEOQA_R1V_Train_8K,
     accuracy_reward_math_lighteval,
+    accuracy_reward_gsm8k,
     format_reward,
     get_cosine_scaled_reward,
     get_repetition_penalty_reward,
@@ -109,6 +110,15 @@ class GRPOScriptArguments(ScriptArguments):
         metadata={"help": "Minimum number of pixels for the image"},
     )
 
+def resize_dataset(dataset, args):
+    # trainset_size % batch_size (gradient_acc * batch_size_per_gpu * gpu_num) == 0 to avoid deepspeed error
+    if args.use_vllm:
+        total_batch_size = args.gradient_accumulation_steps * args.per_device_eval_batch_size * args.world_size / args.num_generations
+    else:
+        total_batch_size = args.gradient_accumulation_steps * args.per_device_eval_batch_size * (args.world_size - 1) / args.num_generations
+    dataset_size = dataset.num_rows
+    new_size = int((dataset_size // total_batch_size) * total_batch_size)
+    return dataset.select(range(new_size))
 
 def main(script_args, training_args, model_args):
     # Set seed for reproducibility
@@ -155,6 +165,7 @@ def main(script_args, training_args, model_args):
     REWARD_FUNCS_REGISTRY = {
         "accuracy_math_lighteval": accuracy_reward_math_lighteval,
         "accuracy_GEOQA": accuracy_reward_GEOQA_R1V_Train_8K,
+        "accuracy_gsm8k": accuracy_reward_gsm8k,
         "format": format_reward,
         "reasoning_steps": reasoning_steps_reward,
         "cosine": get_cosine_scaled_reward(
@@ -177,8 +188,8 @@ def main(script_args, training_args, model_args):
         prompt = []
 
         if training_args.system_prompt is not None:
+            # Qwen2 VL chat template support this paradigm
             prompt.append({"role": "system", "content": [{"type": "text", "text": training_args.system_prompt}]})
-
         prompt.append(
                 {
                     "role": "user", 
@@ -190,14 +201,19 @@ def main(script_args, training_args, model_args):
             )
         return {"prompt": prompt}
     
+    suffix = " Solve the problem and wrap the final solution with \\boxed\\{\\}."
     def make_conversation(example):
         prompt = []
 
         if training_args.system_prompt is not None:
             prompt.append({"role": "system", "content": training_args.system_prompt})
-        prompt.append({"role": "user", "content": example["problem"]})
+        prompt.append({"role": "user", "content": example["question"] if "question" in example else example["problem"]})
+            
+        result = {"prompt": prompt}
+        if "solution" not in example:
+            result["solution"] = example["answer"]
 
-        return {"prompt": prompt}
+        return result
     
     if "image" in dataset[script_args.dataset_train_split].features:
         dataset = dataset.map(make_conversation_vision)
@@ -229,8 +245,8 @@ def main(script_args, training_args, model_args):
             model=model_args.model_name_or_path,
             reward_funcs=reward_funcs,
             args=training_args,
-            train_dataset=dataset[script_args.dataset_train_split],
-            eval_dataset=dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None,
+            train_dataset=resize_dataset(dataset[script_args.dataset_train_split], training_args),
+            eval_dataset=resize_dataset(dataset[script_args.dataset_test_split], training_args) if training_args.eval_strategy != "no" else None,
             peft_config=get_peft_config(model_args),
             callbacks=get_callbacks(training_args, model_args),
             max_pixels=script_args.max_pixels,
@@ -241,8 +257,8 @@ def main(script_args, training_args, model_args):
             model=model_args.model_name_or_path,
             reward_funcs=reward_funcs,
             args=training_args,
-            train_dataset=dataset[script_args.dataset_train_split],
-            eval_dataset=dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None,
+            train_dataset=resize_dataset(dataset[script_args.dataset_train_split], training_args),
+            eval_dataset=resize_dataset(dataset[script_args.dataset_test_split], training_args) if training_args.eval_strategy != "no" else None,
             peft_config=get_peft_config(model_args),
             callbacks=get_callbacks(training_args, model_args),
         )
@@ -297,7 +313,6 @@ def main(script_args, training_args, model_args):
     if training_args.push_to_hub:
         logger.info("Pushing to hub...")
         trainer.push_to_hub(**kwargs)
-
 
 if __name__ == "__main__":
     parser = TrlParser((GRPOScriptArguments, GRPOConfig, ModelConfig))
