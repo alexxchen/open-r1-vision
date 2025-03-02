@@ -5,10 +5,10 @@ Extended version of open-R1 featuring **multimodal GRPO training** with seamless
 
 ## Key Features ✨
 
-- 🤖 **A More Perfect Reproduction** - The demo in Open-R1 did not replicate the phenomenon of increased response length. However, the modified version I created successfully demonstrates this phenomenon with longer responses.
-- 🔧 **Zero Compatibility Issues** - The GRPO algorithm is undergoing rapid iterations. I have reviewed the code of the trl, vllm, and transformers packages to ensure that there are no compatibility issues with the current version.
+- 🤖 **A More Perfect Reproduction** - The demo in Open-R1 did not replicate the phenomenon of increased response length. However, the modified version here successfully demonstrates this phenomenon with longer responses.
+- 🔧 **Zero Compatibility Issues** - The GRPO algorithm is undergoing rapid iterations. The code of the trl, vllm, and transformers packages have been reviewed to ensure that there are no compatibility issues with the current version.
 - 🌐 **Multi Dataset Support** - Support both textual datasets and multimodal datasets.
-- ⚡ **Pre-built Docker Image** - To minimize the cost of environment configuration and improve reproduction efficiency, we not only provide a Dockerfile but also offer pre-built images to ensure developers can quickly restore the experimental environment.
+- ⚡ **Pre-built Docker Image** - To minimize the cost of environment configuration and improve reproduction efficiency, not only a Dockerfile is provided but also a pre-built image to ensure developers can quickly restore the experimental environment.
 - 🚀 **One-Click Training on Slurm** - Docker cannot be used on Slurm, so we provide Singularity commands to support large-scale training on Slurm.
 
 ## Results
