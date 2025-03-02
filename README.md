@@ -12,7 +12,7 @@ Extended version of open-R1 featuring **multimodal GRPO training** with seamless
 - 🚀 **One-Click Training on Slurm** - Docker cannot be used on Slurm, so we provide Singularity commands to support large-scale training on Slurm.
 
 ## Results
-- Training logs on GSM8K
+- Training logs on GSM8K - The average response length increases during training.
   ![The average response length increases](images/gsm8k.png)
 
 - Training logs on GeoQA (to be release)
