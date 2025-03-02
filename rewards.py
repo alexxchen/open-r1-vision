@@ -63,13 +63,14 @@ def accuracy_reward_math_lighteval(completions, solution, **kwargs):
         content_match = re.search(r'<answer>(.*?)</answer>', content)
         if content_match:
             answer = content_match.group(1).strip()
-            answer_match = re.search(r'\\boxed\{(.*?)\}', answer)
+            answer_match = re.search(r'\\boxed\{(.*)\}', answer)
             if answer_match:
                 answer_parsed = answer_match.group(1).strip()
                 reward = float(verify(answer_parsed, sol_parsed))
             else:
-                answer_parsed = answer.strip()
-                reward = float(verify(answer_parsed, sol_parsed)) * 0.5
+                # answer_parsed = answer.strip()
+                # reward = float(verify(answer_parsed, sol_parsed))
+                reward = 0.0
         else:
             # answer_match = re.search(r'\\boxed\{(.*?)\}', content)
             # answer_parsed = answer_match.group(1).strip() if answer_match else content.strip()
@@ -82,21 +83,46 @@ def accuracy_reward_math_lighteval(completions, solution, **kwargs):
         
         if os.getenv("DEBUG_MODE") == "true":
             log_path = os.getenv("LOG_PATH")
-            # local_rank = int(os.getenv("LOCAL_RANK", 0))
             with open(log_path, "a") as f:
                 f.write(f"------------- {current_time} Accuracy reward: {reward} -------------\n")
                 f.write(f"Content: {content}\n")
                 f.write(f"Solution: {sol}\n")
     return rewards
 
+def accuracy_reward_gsm8k(completions, solution, **kwargs):
+    """Reward function that checks if the completion is the same as the ground truth."""
+    contents = [completion[0]["content"] for completion in completions]
+    rewards = []
+    current_time = datetime.now().strftime("%d-%H-%M-%S-%f")
+    for content, sol in zip(contents, solution):
+        sol_match = re.search(r'####(.*)', sol)
+        sol_parsed = sol_match.group(1).strip() if sol_match else sol.strip()
+
+        # Extract answer from content if it has think/answer tags
+        content_match = re.search(r'<answer>(.*?)</answer>', content)
+        if content_match:
+            answer_parsed = content_match.group(1).strip()
+            reward = float(verify(answer_parsed, sol_parsed))
+        else:
+            reward = 0.0
+
+        rewards.append(reward)
+        
+        if os.getenv("DEBUG_MODE") == "true":
+            log_path = os.getenv("LOG_PATH")
+            with open(log_path, "a") as f:
+                f.write(f"------------- {current_time} Accuracy reward: {reward} -------------\n")
+                f.write(f"Content: {content}\n")
+                f.write(f"Solution: {sol}\n")
+    return rewards
 
 def format_reward(completions, **kwargs):
     """Reward function that checks if the reasoning process is enclosed within <think> and </think> tags, while the final answer is enclosed within <answer> and </answer> tags."""
-    pattern_1 = r"^<think>.*?</think>\s*<answer>.*?</answer>$"
+    pattern_1 = r"<think>.*?</think>\s*<answer>.*?</answer>"
     pattern_2 = r"^<think>(?:(?!<think>).)*</think>\s*<answer>(?:(?!<answer>).)*</answer>$"
     completion_contents = [completion[0]["content"] for completion in completions]
-    matches_1 = [re.match(pattern_1, content, re.DOTALL | re.MULTILINE) for content in completion_contents]
-    matches_2 = [re.match(pattern_2, content, re.DOTALL | re.MULTILINE) for content in completion_contents]
+    matches_1 = [re.match(pattern_1, content, re.DOTALL) for content in completion_contents]
+    matches_2 = [re.match(pattern_2, content, re.DOTALL) for content in completion_contents]
     return [1.0 if match2 else (0.5 if match1 else 0.0) for match1, match2 in zip(matches_1, matches_2)]
 
 
