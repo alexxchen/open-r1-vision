@@ -15,7 +15,7 @@ Extended version of open-R1 featuring **multimodal GRPO training** with seamless
 - Training logs on GSM8K
   ![The average response length increases](images/gsm8k.png)
 
-- Training logs on GEOQA (still fine tuning)
+- Training logs on GeoQA (to be release)
 
 ## Quick Start ▶️
 
