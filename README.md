@@ -46,4 +46,4 @@ Modify config_text.yaml or config_vision.yaml for:
 Apache 2.0 - See LICENSE for details
 
 ## Acknowledgments 🌟
-Sincerely thank to [open-R1](https://github.com/huggingface/open-r1) and [R1-V](https://github.com/Deep-Agent/R1-V) 
+Special thanks to Prof. Zuoren Wang from Center for Excellence in Brain Science and Intelligence Technology for the support. Sincerely thank to [open-R1](https://github.com/huggingface/open-r1) and [R1-V](https://github.com/Deep-Agent/R1-V)
