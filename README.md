@@ -5,7 +5,7 @@ Extended version of open-R1 featuring **multimodal GRPO training** with seamless
 
 ## News 🗞️
 
-+ [2025/3/14]: We support using generative reward model to judge the answer and the tinking process. This will expand the GRPO training to text reasoning rather than just Math or Coding task.
++ [2025/3/14]: We support using generative reward model to judge the answer and the reasoning process. This will expand the GRPO training to text reasoning rather than just Math or Coding task.
 
 ## Key Features ✨
 
