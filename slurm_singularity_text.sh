@@ -13,6 +13,9 @@ export DEBUG_MODE="true" # Enable Debug if you want to see the rollout of model 
 export LOG_PATH="./debug_log.txt"
 export WANDB_RUN_NAME=Qwen-2.5-3B-Simple-RL-$(date +%Y-%m-%d-%H-%M-%S)
 
+export OPENAI_API_BASE='http://gpu1.example.com:8000/v1'
+export OPENAI_API_KEY='empty'
+
 # Bind necessary directories into the container
 # BINDS="--bind /opt/app/nvidia/535.154.05/:/usr/local/nvidia"
 
