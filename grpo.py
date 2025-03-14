@@ -30,6 +30,9 @@ from rewards import (
     accuracy_reward_GEOQA_R1V_Train_8K,
     accuracy_reward_math_lighteval,
     accuracy_reward_gsm8k,
+    Gen_ORM_reward,
+    Gen_PRM_reward,
+    embedding_reward,
     format_reward,
     get_cosine_scaled_reward,
     get_repetition_penalty_reward,
@@ -166,6 +169,9 @@ def main(script_args, training_args, model_args):
         "accuracy_math_lighteval": accuracy_reward_math_lighteval,
         "accuracy_GEOQA": accuracy_reward_GEOQA_R1V_Train_8K,
         "accuracy_gsm8k": accuracy_reward_gsm8k,
+        "gen_orm_reward": Gen_ORM_reward,
+        "gen_prm_reward": Gen_PRM_reward,
+        "embedding": embedding_reward,
         "format": format_reward,
         "reasoning_steps": reasoning_steps_reward,
         "cosine": get_cosine_scaled_reward(
@@ -201,17 +207,24 @@ def main(script_args, training_args, model_args):
             )
         return {"prompt": prompt}
     
-    suffix = " Solve the problem and wrap the final solution with \\boxed\\{\\}."
+    if "accuracy_gsm8k" in reward_funcs:
+        suffix = " Slove the problem and conclude with the final answer formatted as #### [value], e.g., #### 0.01."
+    else:
+        suffix = ''
+
     def make_conversation(example):
         prompt = []
 
         if training_args.system_prompt is not None:
             prompt.append({"role": "system", "content": training_args.system_prompt})
-        prompt.append({"role": "user", "content": example["question"] if "question" in example else example["problem"]})
+        prompt.append({"role": "user", "content": example["question"]+suffix if "question" in example else example["problem"]+suffix})
             
         result = {"prompt": prompt}
         if "solution" not in example:
             result["solution"] = example["answer"]
+
+        if "question" not in example:
+            result["question"] = example["problem"]
 
         return result
     
@@ -219,6 +232,23 @@ def main(script_args, training_args, model_args):
         dataset = dataset.map(make_conversation_vision)
     else:
         dataset = dataset.map(make_conversation)
+
+
+    if "embedding" in script_args.reward_funcs:
+        dataset_name_suffix = script_args.dataset_name.split('/')[-1]
+        embedding_cache_path = os.path.join("{}_embeddings_cache.pt".format(dataset_name_suffix))
+
+        # 如果存在缓存文件则直接加载
+        if os.path.exists(embedding_cache_path):
+            logger.info("Loading cached embeddings...")
+            embeddings_cache = torch.load(embedding_cache_path)
+        else:
+            logger.info("Please run preprocess first")
+
+        # 将embeddings添加到dataset中
+        for split in dataset:
+            dataset[split] = dataset[split].add_column("solution_embedding", embeddings_cache[split])
+
 
     for split in dataset:
         if "messages" in dataset[split].column_names:
@@ -313,6 +343,7 @@ def main(script_args, training_args, model_args):
     if training_args.push_to_hub:
         logger.info("Pushing to hub...")
         trainer.push_to_hub(**kwargs)
+
 
 if __name__ == "__main__":
     parser = TrlParser((GRPOScriptArguments, GRPOConfig, ModelConfig))

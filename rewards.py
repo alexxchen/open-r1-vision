@@ -4,6 +4,12 @@ import math
 import re
 from datetime import datetime
 from typing import Dict
+from openai import OpenAI, AzureOpenAI, AsyncOpenAI, AsyncAzureOpenAI
+from openai import APITimeoutError, APIError, APIConnectionError
+import asyncio
+import numpy as np
+import time
+import torch.distributed as dist
 
 from latex2sympy2_extended import NormalizationConfig
 from math_verify import LatexExtractionConfig, parse, verify
@@ -68,15 +74,8 @@ def accuracy_reward_math_lighteval(completions, solution, **kwargs):
                 answer_parsed = answer_match.group(1).strip()
                 reward = float(verify(answer_parsed, sol_parsed))
             else:
-                # answer_parsed = answer.strip()
-                # reward = float(verify(answer_parsed, sol_parsed))
                 reward = 0.0
         else:
-            # answer_match = re.search(r'\\boxed\{(.*?)\}', content)
-            # answer_parsed = answer_match.group(1).strip() if answer_match else content.strip()
-
-            # # Reward 1 if the content is the same as the ground truth, 0 otherwise
-            # reward = float(verify(answer_parsed, sol_parsed)) * 0.0
             reward = 0.0
 
         rewards.append(reward)
@@ -102,7 +101,12 @@ def accuracy_reward_gsm8k(completions, solution, **kwargs):
         content_match = re.search(r'<answer>(.*?)</answer>', content)
         if content_match:
             answer_parsed = content_match.group(1).strip()
-            reward = float(verify(answer_parsed, sol_parsed))
+            final_parsed = re.search(r'####(.*)', answer_parsed)
+            if final_parsed:
+                final_answer = final_parsed.group(1).strip()
+                reward = float(verify(final_answer, sol_parsed))
+            else:
+                reward = 0.0
         else:
             reward = 0.0
 
@@ -114,6 +118,194 @@ def accuracy_reward_gsm8k(completions, solution, **kwargs):
                 f.write(f"------------- {current_time} Accuracy reward: {reward} -------------\n")
                 f.write(f"Content: {content}\n")
                 f.write(f"Solution: {sol}\n")
+    return rewards
+
+def embedding_reward(completions, solution_embedding, **kwargs):
+    
+    openai_base = os.getenv("OPENAI_API_BASE")
+    api_key = os.getenv("OPENAI_API_KEY")
+    
+    contents = [completion[0]["content"] for completion in completions]
+    rewards = []
+
+    answers = []
+    for content in contents:
+        content_match = re.search(r'<answer>(.*?)</answer>', content)
+        if content_match:
+            answer_parsed = content_match.group(1).strip()
+            if len(answer_parsed) == 0:
+                answers.append(' ')
+            else:
+                answers.append(answer_parsed)
+        else:
+            answers.append(' ')
+
+    # client = OpenAI(base_url=openai_base, api_key=api_key)
+    client = AzureOpenAI(azure_endpoint=openai_base, api_key=api_key, api_version = "2023-05-15")
+
+    response = client.embeddings.create( model="text-embedding-3-large", input=answers)
+
+    for content_data, sol_embedding in zip(response.data, solution_embedding):
+        completion_embed = content_data.embedding
+        similarity = np.dot(completion_embed, sol_embedding) / (np.linalg.norm(completion_embed) * np.linalg.norm(sol_embedding))
+        rewards.append(float(similarity))
+
+    return rewards
+
+class OpenAI_ClientSingleton:
+    _instance = None
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = AsyncOpenAI(base_url=os.getenv("OPENAI_API_BASE"), api_key=os.getenv("OPENAI_API_KEY"))
+        return cls._instance
+
+def Gen_ORM_reward(question, completions, solution, **kwargs):
+
+    contents = [completion[0]["content"] for completion in completions]
+
+    answers = []
+    for content in contents:
+        content_match = re.search(r'<answer>(.*?)</answer>', content)
+        if content_match:
+            answer_parsed = content_match.group(1).strip()
+            if len(answer_parsed) == 0:
+                answers.append('empty')
+            else:
+                answers.append(answer_parsed)
+        else:
+            answers.append('empty')
+    
+    timeout_duration = 60
+
+    async def async_request(client, prompt):
+        try:
+            response = await client.chat.completions.create(
+                model="Qwen/Qwen2.5-7B-Instruct",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=50,
+                stream=False,
+                timeout=timeout_duration,
+                temperature=0.1,
+            )
+            return response.choices[0].message.content
+
+        except Exception as e:
+            print(f"API final failure: {e}")
+            return '[[0.0]]'
+
+    async def batch_async_requests(client, prompts):
+        tasks = [async_request(client, prompt) for prompt in prompts]
+        return await asyncio.gather(*tasks)
+
+    RM_PROMPT = '''Please act as an impartial judge and evaluate the quality of the responses provided by AI
+        assistants to the user question displayed below. Please compare the generated answer with the standard 
+        answer and provide a similarity score between 0 and 1, where 1 means identical and 0 means completely different.
+        Don't be fooled by a placeholder answer like "detailed answer here". Just output your final score in this format: "[[your score]]", with no other words or explanation.
+        User:
+        [Question]
+        {question}
+        [The Start of Standard Answer]
+        {sol}
+        [The End of Standard Answer]
+        [The Start of Assistant's Answer]
+        {answer}
+        [The End of Assistant's Answer]'''
+
+    prompts = [RM_PROMPT.format(question=prob, sol=sol, answer=ans) 
+           for prob, ans, sol in zip(question, answers, solution)]
+    
+    client = OpenAI_ClientSingleton.get_instance()
+
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    responses = loop.run_until_complete(batch_async_requests(client, prompts))
+    
+    rewards = []
+    for res in responses:
+        score = re.search(r'\[\[(0?\.\d+|1(?:\.0*)?)\]\]', res)
+        if score:
+            reward = float(score.group(1).strip())
+        else:
+            reward = 0.0
+        rewards.append(reward)
+    return rewards
+
+def Gen_PRM_reward(question, completions, solution, **kwargs):
+    
+    contents = [completion[0]["content"] for completion in completions]
+
+    processes = []
+    for content in contents:
+        content_match = re.search(r'<think>(.*?)</think>', content)
+        if content_match:
+            process_parsed = content_match.group(1).strip()
+            if len(process_parsed) == 0:
+                processes.append('empty')
+            else:
+                processes.append(process_parsed)
+        else:
+            processes.append('empty')
+    
+    timeout_duration = 60
+
+    async def async_request(client, prompt):
+        try:
+            response = await client.chat.completions.create(
+                model="Qwen/Qwen2.5-7B-Instruct",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=50,
+                stream=False,
+                timeout=timeout_duration,
+                temperature=0.1,
+            )
+            return response.choices[0].message.content
+
+        except Exception as e:
+            print(f"API final failure: {e}")
+            return '[[0.0]]'
+
+    async def batch_async_requests(client, prompts):
+        tasks = [async_request(client, prompt) for prompt in prompts]
+        return await asyncio.gather(*tasks)
+
+    RM_PROMPT = '''Please act as an impartial judge and evaluate the quality of the reasoning process provided by AI
+        assistants to the user question displayed below. Please assess logical soundness, relevance, thoroughness, and accuracy the reasoning process 
+        and provide a score between 0 and 1, where 1 means excellent and 0 means poor. Don't be fooled by a placeholder process like "reasoning process here".
+        Just output your final score in this format: "[[your score]]", with no other words or explanation.
+        User:
+        [Question]
+        {question}
+        [The Start of Assistant's Reasoning Process]
+        {process}
+        [The End of Assistant's Reasoning Process]'''
+
+    prompts = [RM_PROMPT.format(question=prob, process=proc) 
+           for prob, proc in zip(question, processes)]
+
+    client = OpenAI_ClientSingleton.get_instance()
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    responses = loop.run_until_complete(batch_async_requests(client, prompts))
+    
+    rewards = []
+    for res in responses:
+        score = re.search(r'\[\[(0?\.\d+|1(?:\.0*)?)\]\]', res)
+        if score:
+            reward = float(score.group(1).strip())
+        else:
+            reward = 0.0
+        rewards.append(reward)
+
     return rewards
 
 def format_reward(completions, **kwargs):
