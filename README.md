@@ -3,6 +3,10 @@
 
 Extended version of open-R1 featuring **multimodal GRPO training** with seamless Docker deployment and Slurm integration.
 
+## News 🗞️
+
++ [2025/3/14]: We support using generative reward model to judge the answer and the tinking process. This will expand the GRPO training to text reasoning rather than just Math or Coding task.
+
 ## Key Features ✨
 
 - 🤖 **A More Perfect Reproduction** - The demo in Open-R1 did not replicate the phenomenon of increased response length. However, the modified version here successfully demonstrates this phenomenon with longer responses.
