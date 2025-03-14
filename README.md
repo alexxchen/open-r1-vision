@@ -33,6 +33,16 @@ The script will automatically:
 1. Pull the pre-built Docker image and convert it into singularity image
 2. Launch Slurm job with optimal default parameters
 
+### Trainig with Reward Model
+In the technical report of Deepseek-R1 model, they use Deepseek-V3 as generative reward model for judgment.
+We provide an example that use both ORM and PRM reward in config_text_RM.yaml
+To run this, we need:
+
++ Switch yaml file name to "config_text_RM.yaml" in slurm_singularity_text.sh
++ Bring the reward model online by ```sbatch start_reward_model.sh```
++ Start training ```./start_run.sh```
+
+
 ### Slurm Configuration ⚙️
 Customize training resource and parameters in slurm_singularity_text.sh or slurm_singularity_vision.sh
 
