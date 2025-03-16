@@ -4,7 +4,7 @@ FROM vllm/vllm-openai:v0.7.3 AS vllm-trl
 WORKDIR /vllm-workspace
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install https://github.com/huggingface/transformers.git@9f51dc25357bcde280a02b59e80b66248b018ca4
+    python3 -m pip install git+https://github.com/huggingface/transformers.git@9f51dc25357bcde280a02b59e80b66248b018ca4
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install flash-attn==2.7.4.post1 --no-build-isolation
